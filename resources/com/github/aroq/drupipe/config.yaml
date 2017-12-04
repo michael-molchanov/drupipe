@@ -90,7 +90,7 @@ jobs:
 params:
   pipeline:
     scripts_library:
-      url: https://github.com/aroq/drupipe.git
+      url: https://github.com/michael-molchanov/drupipe.git
       ref: master
       type: branch
 
