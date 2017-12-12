@@ -4,36 +4,42 @@ class ConfigProviderJob extends ConfigProviderBase {
 
     // TODO: check if this is needed as Config Provider or Processor.
     def provide() {
-        utils.log "ConfigProviderJob->provide()"
+        controller.drupipeLogger.log "ConfigProviderJob->provide()"
 //        if (drupipeConfig.config.config_version > 1) {
-        utils.log "Initialising drupipeProcessorsController"
+        controller.drupipeLogger.log "Initialising drupipeProcessorsController"
         controller.drupipeProcessorsController = controller.drupipeConfig.initProcessorsController(this, drupipeConfig.config.processors)
 //        }
         if (drupipeConfig.config.jobs) {
             controller.archiveObjectJsonAndYaml(drupipeConfig.config, 'context_unprocessed')
 
+            String jobName = drupipeConfig.config.env.JOB_NAME != 'persistent/mothership' ? drupipeConfig.config.env.JOB_NAME : 'mothership'
+
+            if (jobName == 'mothership') {
+                drupipeConfig.config.config_version = 2
+            }
             // Performed here as needed later for job processing.
             controller.drupipeConfig.process()
 
             drupipeConfig.config.jobs = processJobs(drupipeConfig.config.jobs)
 
-            utils.log "Job name: " + drupipeConfig.config.env.JOB_NAME
+            controller.drupipeLogger.log "Job name: " + drupipeConfig.config.env.JOB_NAME
 
-            if (drupipeConfig.config.env.JOB_NAME.contains('/')) {
-                drupipeConfig.config.job = (drupipeConfig.config.env.JOB_NAME).split('/').drop(1).inject(drupipeConfig.config, { obj, prop ->
+            // TODO: check it will all cases.
+            if (jobName.contains('/')) {
+                drupipeConfig.config.job = jobName.split('/').drop(1).inject(drupipeConfig.config, { obj, prop ->
                     obj.jobs[prop]
                 })
             }
             else {
-                drupipeConfig.config.job = drupipeConfig.config.jobs[drupipeConfig.config.env.JOB_NAME]
-                drupipeConfig.config.config_version = 2
+                drupipeConfig.config.job = drupipeConfig.config.jobs[jobName]
+//                drupipeConfig.config.config_version = 2
             }
 
             if (drupipeConfig.config.job) {
                 if (drupipeConfig.config.job.context) {
                     drupipeConfig.config = utils.merge(drupipeConfig.config, drupipeConfig.config.job.context)
                 }
-                utils.jsonDump(drupipeConfig.config, drupipeConfig.config.job,'CONFIG JOB', false)
+                controller.drupipeLogger.jsonDump(drupipeConfig.config.job,'CONFIG JOB')
             }
             else {
                 throw new Exception("ConfigProviderJob->provide: No job is defined.")
