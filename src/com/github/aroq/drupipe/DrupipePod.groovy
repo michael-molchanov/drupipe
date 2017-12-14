@@ -10,11 +10,27 @@ class DrupipePod extends DrupipeBase {
 
     ArrayList<DrupipeContainer> containers = []
 
-    DrupipeController controller
-
     boolean containerized = true
 
     boolean unipipe_retrieve_config = false
+
+    ArrayList<DrupipeContainer> prepareContainers() {
+        ArrayList<DrupipeContainer> result = []
+        for (container in containers) {
+            controller.drupipeLogger.debugLog(controller.context, container, 'CONTAINER', [debugMode: 'json'])
+            container = new DrupipeContainer(container)
+            container.controller = controller
+            container.pod = this
+            result.add(container)
+        }
+        result
+    }
+
+    def executeContainers() {
+        for (container in containers) {
+            container.execute()
+        }
+    }
 
     def execute(body = null) {
         def script = controller.script
@@ -28,16 +44,11 @@ class DrupipePod extends DrupipeBase {
                 controller.drupipeLogger.warning "Retrieve config disabled in config."
             }
             controller.utils.unstashList(controller, unstash)
-            for (container in containers) {
-                controller.drupipeLogger.debugLog(controller.context, container, 'CONTAINER', [debugMode: 'json'])
-                container = new DrupipeContainer(container)
-                container.controller = controller
-                container.pod = this
-                container.execute()
-            }
+
+            executeContainers()
+
             controller.utils.stashList(controller, stash)
         }
-
     }
 
 }

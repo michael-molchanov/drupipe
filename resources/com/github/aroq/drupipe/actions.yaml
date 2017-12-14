@@ -129,7 +129,7 @@ params:
       params:
         druflowDir: druflow
         druflowRepo: https://github.com/aroq/druflow.git
-        druflowGitReference: v0.1.3
+        druflowGitReference: v0.1.4
 
       operations:
         params:
@@ -469,3 +469,19 @@ params:
             done'' '
           full_command:
             - ${action.params.command}
+
+    Ssh:
+      tunnel:
+        params:
+          executable: ssh
+          options: -f -N -L
+          bind_address: 127.0.0.1
+          port: 22
+          host: ""
+          hostport: 22
+          through_host: ""
+          full_command:
+            - ${action.params.executable}
+            - ${action.params.options}
+            - ${action.params.bind_address}:${action.params.port}:${action.params.host}:${action.params.hostport}
+            - ${action.params.through_host}
