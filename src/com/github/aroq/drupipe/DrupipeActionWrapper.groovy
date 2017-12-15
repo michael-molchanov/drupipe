@@ -28,6 +28,7 @@ class DrupipeActionWrapper implements Serializable {
     }
 
     def execute() {
+        def globalLogLevelWeight = pipeline.drupipeLogger.logLevelWeight
         utils = pipeline.utils
 
         this.script = pipeline.script
@@ -61,6 +62,10 @@ class DrupipeActionWrapper implements Serializable {
                 this.params = pipeline.drupipeConfig.processItem(this.params, 'actions', 'params', 'execute')
             }
 
+            if (this.params.containsKey('log_level')) {
+                pipeline.drupipeLogger.logLevelWeight = pipeline.context.log_levels[this.params.log_level].weight
+            }
+
             if (!this.params) {
                 this.params = [:]
             }
@@ -68,12 +73,23 @@ class DrupipeActionWrapper implements Serializable {
             pipeline.drupipeLogger.debugLog(this.params, this.params, "this.params after merge defaultActionParams with this.params", [debugMode: 'json'])
 
             def actionInstance
+
             try {
-                actionInstance = this.class.classLoader.loadClass("com.github.aroq.drupipe.actions.${this.name}", true, false)?.newInstance(
-                    action: this,
-                    script: this.script,
-                    utils: utils,
-                )
+                try {
+//                    Class.forName( "com.github.aroq.drupipe.actions.${this.name}");
+                    actionInstance = this.class.classLoader.loadClass("com.github.aroq.drupipe.actions.${this.name}", true, false)?.newInstance(
+                        action: this,
+                        script: this.script,
+                        utils: utils,
+                    )
+                }
+                catch (ClassNotFoundException e) {
+                    actionInstance = this.class.classLoader.loadClass("com.github.aroq.drupipe.actions.${this.params.fallback_class_name}", true, false)?.newInstance(
+                        action: this,
+                        script: this.script,
+                        utils: utils,
+                    )
+                }
             }
             catch (err) {
                 this.script.echo err.toString()
@@ -89,7 +105,9 @@ class DrupipeActionWrapper implements Serializable {
 
                 try {
 //                    pipeline.drupipeLogger.log "Call hook_preprocess()"
-                    actionInstance.hook_preprocess()
+                    if (actionInstance.metaClass.respondsTo('hook_preprocess')) {
+                        actionInstance.hook_preprocess()
+                    }
                 }
                 catch (err) {
                     // No preprocess defined.
@@ -97,7 +115,9 @@ class DrupipeActionWrapper implements Serializable {
 
                 try {
 //                    pipeline.drupipeLogger.log "Call ${this.methodName}_hook_preprocess()"
-                    actionInstance."${this.methodName}_hook_preprocess"()
+                    if (actionInstance.metaClass.respondsTo("${this.methodName}_hook_preprocess")) {
+                        actionInstance."${this.methodName}_hook_preprocess"()
+                    }
                 }
                 catch (err) {
                     // No preprocess defined.
@@ -187,9 +207,7 @@ class DrupipeActionWrapper implements Serializable {
                         }
                     }
 
-                    if (pipeline.context.params && pipeline.context.params.action && pipeline.context.params.action["${name}_${methodName}"] && pipeline.context.params.action["${name}_${methodName}"].debugEnabled) {
-                        pipeline.drupipeLogger.debugLog(pipeline.context, pipeline.context, "pipeline.context results", [debugMode: 'json'], [this.params.store_result_key])
-                    }
+                    pipeline.drupipeLogger.debugLog(pipeline.context, pipeline.context, "pipeline.context results", [debugMode: 'json'], [this.params.store_result_key])
                 }
             }
 
@@ -204,6 +222,7 @@ class DrupipeActionWrapper implements Serializable {
 
             pipeline.drupipeLogger.echoDelimiter "-----> DrupipeStage: ${drupipeStageName} | DrupipeActionWrapper name: ${this.fullName} end <-"
             pipeline.drupipeLogger.collapsedEnd()
+            pipeline.drupipeLogger.logLevelWeight = globalLogLevelWeight
             this.result
         }
         catch (err) {
@@ -224,6 +243,7 @@ class DrupipeActionWrapper implements Serializable {
                 notification.message = notification.message ? notification.message : ''
                 notification.message = notification.message + "\n\n" + this.result.stdout
             }
+
             utils.pipelineNotify(pipeline.context, notification)
         }
     }
