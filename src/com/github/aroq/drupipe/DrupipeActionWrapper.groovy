@@ -53,6 +53,8 @@ class DrupipeActionWrapper implements Serializable {
             def actionParams = [:]
             def defaultActionParams = [:]
 
+            def classNames = ['BaseShellAction']
+
             if (this.params && this.params.containsKey('fromProcessed') && this.params.fromProcessed) {
                 pipeline.drupipeLogger.debug "Action was processed with 'from' in ${this.params.from_processed_mode}"
             }
@@ -61,6 +63,8 @@ class DrupipeActionWrapper implements Serializable {
                 this.params.from = '.params.actions.' + name + '.' + methodName
                 this.params = pipeline.drupipeConfig.processItem(this.params, 'actions', 'params', 'execute')
             }
+
+            classNames += name.tokenize(".")
 
             if (this.params.containsKey('log_level')) {
                 pipeline.drupipeLogger.logLevelWeight = pipeline.context.log_levels[this.params.log_level].weight
@@ -75,20 +79,21 @@ class DrupipeActionWrapper implements Serializable {
             def actionInstance
 
             try {
-                try {
-//                    Class.forName( "com.github.aroq.drupipe.actions.${this.name}");
-                    actionInstance = this.class.classLoader.loadClass("com.github.aroq.drupipe.actions.${this.name}", true, false)?.newInstance(
-                        action: this,
-                        script: this.script,
-                        utils: utils,
-                    )
-                }
-                catch (ClassNotFoundException e) {
-                    actionInstance = this.class.classLoader.loadClass("com.github.aroq.drupipe.actions.${this.params.fallback_class_name}", true, false)?.newInstance(
-                        action: this,
-                        script: this.script,
-                        utils: utils,
-                    )
+                for (className in classNames.reverse()) {
+                    className = "com.github.aroq.drupipe.actions.${className}"
+                    try {
+                        if (!actionInstance) {
+                            pipeline.drupipeLogger.log "Try to create class ${className}"
+                            actionInstance = this.class.classLoader.loadClass(className, true, false)?.newInstance(
+                                action: this,
+                                script: this.script,
+                                utils: utils,
+                            )
+                        }
+                    }
+                    catch (ClassNotFoundException e) {
+                        pipeline.drupipeLogger.log "Class ${className} does not exist"
+                    }
                 }
             }
             catch (err) {
